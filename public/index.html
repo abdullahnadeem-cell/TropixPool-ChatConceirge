@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tropix Chat Tester</title>
+<style>
+  :root{
+    --bg:#f4f6f5; --surface:#ffffff; --surface-2:#eef2f0; --border:#d8e0dc;
+    --text:#13261f; --text-dim:#5a6b64; --accent:#0f7a52; --accent-fg:#ffffff;
+    --bubble-user:#0f7a52; --bubble-user-fg:#ffffff; --bubble-bot:#eef2f0; --bubble-bot-fg:#13261f;
+    --danger:#b3261e; --ok:#1a7a3c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0d1612; --surface:#141f1a; --surface-2:#1b2822; --border:#273832;
+      --text:#eaf2ee; --text-dim:#9fb3ac; --accent:#36c98a; --accent-fg:#06211a;
+      --bubble-user:#36c98a; --bubble-user-fg:#06211a; --bubble-bot:#1b2822; --bubble-bot-fg:#eaf2ee;
+      --danger:#ff6b60; --ok:#4fd98a;
+      color-scheme: dark;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    display:flex; justify-content:center; padding:24px 16px 40px;
+    min-height:100vh;
+  }
+  .wrap{width:100%; max-width:460px; display:flex; flex-direction:column; gap:14px;}
+  header{display:flex; align-items:center; gap:10px;}
+  .icon{width:40px; height:40px; border-radius:11px; background:var(--accent); color:var(--accent-fg);
+    display:flex; align-items:center; justify-content:center; flex:0 0 auto;}
+  h1{font-size:16px; margin:0;}
+  .sub{font-size:12px; color:var(--text-dim); margin:0;}
+  .panel{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px;
+    display:flex; flex-direction:column; gap:10px;}
+  .row{display:flex; gap:8px; align-items:center;}
+  label{font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); width:72px; flex:0 0 auto;}
+  input[type=text]{flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:7px 10px; font-size:12.5px; font-family:inherit;}
+  .status{font-size:11.5px; display:flex; align-items:center; gap:6px; color:var(--text-dim);}
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--text-dim);}
+  .dot.ok{background:var(--ok);} .dot.err{background:var(--danger);} .dot.pending{background:#d9a62b;}
+  .log{min-height:280px; max-height:50vh; overflow-y:auto; background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px;}
+  .msg{max-width:84%; padding:9px 12px; border-radius:12px; font-size:13.5px; line-height:1.45; white-space:pre-wrap; word-break:break-word;}
+  .msg.user{align-self:flex-end; background:var(--bubble-user); color:var(--bubble-user-fg); border-bottom-right-radius:4px;}
+  .msg.bot{align-self:flex-start; background:var(--bubble-bot); color:var(--bubble-bot-fg); border-bottom-left-radius:4px;}
+  .msg.sys{align-self:center; color:var(--text-dim); font-size:11.5px; text-align:center; max-width:100%;}
+  .msg.err{align-self:flex-start; border:1px solid var(--danger); color:var(--danger); font-family:ui-monospace,monospace; font-size:11.5px;}
+  .inputrow{display:flex; gap:8px;}
+  #msgInput{flex:1; min-width:0;}
+  button{border:none; border-radius:9px; background:var(--accent); color:var(--accent-fg); font-size:13px;
+    font-weight:600; padding:9px 16px; cursor:pointer; font-family:inherit;}
+  button:disabled{opacity:.5; cursor:default;}
+  button.ghost{background:transparent; color:var(--text-dim); border:1px solid var(--border); font-weight:500;}
+  details{font-size:11.5px; color:var(--text-dim);}
+  pre{white-space:pre-wrap; word-break:break-word; background:var(--surface-2); border-radius:8px; padding:8px;
+    margin:6px 0 0; font-size:10.5px; max-height:200px; overflow:auto;}
+  .foot{font-size:10.5px; color:var(--text-dim); text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="icon">💬</div>
+    <div>
+      <h1>Tropix Chat Concierge — Webhook Tester</h1>
+      <p class="sub">Calls n8n through this app's own server (no CORS issues)</p>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div class="row">
+      <label for="sessionId">Session</label>
+      <input type="text" id="sessionId" readonly>
+      <button class="ghost" id="newSession" type="button">New</button>
+    </div>
+    <div class="status" id="status"><span class="dot" id="statusDot"></span><span id="statusText">Not tested yet</span></div>
+  </div>
+
+  <div class="log" id="log">
+    <div class="msg sys">Send a message — it goes to /api/chat on this server, which forwards it to the n8n webhook and returns whatever n8n sends back.</div>
+  </div>
+
+  <form class="inputrow" id="chatForm">
+    <input type="text" id="msgInput" placeholder="Type a test message…" autocomplete="off">
+    <button type="submit" id="sendBtn">Send</button>
+  </form>
+
+  <details id="rawDetails" hidden>
+    <summary>Last raw response</summary>
+    <pre id="rawOut"></pre>
+  </details>
+
+  <p class="foot">This only calls the existing n8n webhook — nothing in n8n is created, edited, or activated by this page.</p>
+</div>
+
+<script>
+(function(){
+  function uuid(){
+    if (crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+      var r = Math.random()*16|0, v = c==='x'?r:(r&0x3|0x8);
+      return v.toString(16);
+    });
+  }
+
+  var sessionInput = document.getElementById('sessionId');
+  var log = document.getElementById('log');
+  var form = document.getElementById('chatForm');
+  var msgInput = document.getElementById('msgInput');
+  var sendBtn = document.getElementById('sendBtn');
+  var statusDot = document.getElementById('statusDot');
+  var statusText = document.getElementById('statusText');
+  var rawDetails = document.getElementById('rawDetails');
+  var rawOut = document.getElementById('rawOut');
+
+  function resetSession(){ sessionInput.value = uuid(); }
+  resetSession();
+  document.getElementById('newSession').addEventListener('click', resetSession);
+
+  function addMsg(text, cls){
+    var d = document.createElement('div');
+    d.className = 'msg ' + cls;
+    d.textContent = text;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function setStatus(state, text){
+    statusDot.className = 'dot ' + state;
+    statusText.textContent = text;
+  }
+
+  function extractReply(data){
+    if (data == null) return null;
+    if (typeof data === 'string') return data;
+    if (Array.isArray(data)){
+      for (var i=0;i<data.length;i++){ var r = extractReply(data[i]); if (r) return r; }
+      return null;
+    }
+    if (typeof data === 'object'){
+      var keys = ['output','text','message','reply','response','answer'];
+      for (var k=0;k<keys.length;k++){
+        if (typeof data[keys[k]] === 'string') return data[keys[k]];
+      }
+      if (data.json) return extractReply(data.json);
+    }
+    return null;
+  }
+
+  async function sendMessage(text){
+    addMsg(text, 'user');
+    setStatus('pending', 'Sending…');
+    sendBtn.disabled = true;
+
+    try {
+      var res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sessionInput.value, message: text })
+      });
+      var body = await res.json();
+
+      rawDetails.hidden = false;
+      rawOut.textContent = JSON.stringify(body, null, 2);
+
+      if (!res.ok || body.error){
+        setStatus('err', body.error || ('HTTP ' + res.status));
+        addMsg((body.error || 'Request failed') + (body.detail ? ('\n' + body.detail) : ''), 'err');
+        return;
+      }
+
+      if (!body.upstreamOk){
+        setStatus('err', 'n8n returned HTTP ' + body.upstreamStatus);
+        addMsg('n8n webhook responded with HTTP ' + body.upstreamStatus + '\n' + (body.raw ? body.raw.slice(0,300) : '(empty body)'), 'err');
+        return;
+      }
+
+      var reply = body.parsed ? extractReply(body.parsed) : null;
+      if (reply){
+        setStatus('ok', 'Reached workflow — reply received');
+        addMsg(reply, 'bot');
+      } else {
+        setStatus('ok', 'Reached workflow — see raw response below');
+        addMsg('Got a 200 OK from n8n but no recognizable reply field — check "Last raw response" below.', 'sys');
+      }
+    } catch (err){
+      setStatus('err', 'Request failed');
+      addMsg('Request to this app\'s own server failed: ' + err.message, 'err');
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var text = msgInput.value.trim();
+    if (!text) return;
+    msgInput.value = '';
+    sendMessage(text);
+  });
+})();
+</script>
+</body>
+</html>
